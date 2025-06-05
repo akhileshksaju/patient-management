@@ -1,0 +1,12 @@
+###create a new patient
+
+POST http://localhost:4000/api/patient
+Content-Type: application/json
+
+{
+  "name": "aks",
+  "address": "akhilesh villa",
+  "email": "aks1@gmail.com",
+  "dateOfBirth": "1997-10-10",
+  "registeredDate": "2025-10-10"
+}
