@@ -1,9 +1,12 @@
 package com.aks.patientservice.service;
 
+import billing.BillingResponse;
 import com.aks.patientservice.DTO.PatientRequestDTO;
 import com.aks.patientservice.DTO.PatientResponseDTO;
 import com.aks.patientservice.exception.EmailAlreadyExistException;
 import com.aks.patientservice.exception.IdNotFoundException;
+import com.aks.patientservice.grpc.BillingServiceGrpcClient;
+import com.aks.patientservice.kafka.KafkaProducer;
 import com.aks.patientservice.mapper.PatientMapper;
 import com.aks.patientservice.model.Patient;
 import com.aks.patientservice.repository.PatientRepository;
@@ -12,8 +15,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -27,9 +28,13 @@ public class PatientService {
     Pageable pageable = PageRequest.of(0, 10, Sort.by("name"));
 
     private PatientRepository patientRepository;
+    private BillingServiceGrpcClient billingServiceGrpcClient;
+    private KafkaProducer kafkaProducer;
 
-    public PatientService(PatientRepository patientRepository) {
+    public PatientService(PatientRepository patientRepository, BillingServiceGrpcClient billingServiceGrpcClient,KafkaProducer kafkaProducer) {
         this.patientRepository = patientRepository;
+        this.billingServiceGrpcClient=billingServiceGrpcClient;
+        this.kafkaProducer=kafkaProducer;
     }
 
     public List<PatientResponseDTO> getAllPatients() {
@@ -43,6 +48,11 @@ public class PatientService {
             throw  new EmailAlreadyExistException("this is email is already exist");
         }
         Patient patient = patientRepository.save(PatientMapper.dtoToPatient(patientRequestDTO));
+        BillingResponse billingResponse = billingServiceGrpcClient.createBillinAccount(patient.getId().toString(),patient.getName(),patient.getEmail());
+        log.info("called grpc method");
+
+        kafkaProducer.sendPatient(patient);
+        log.info("Created Patient {} and added to the kafka",patient);
 
         return PatientMapper.patientToDto(patient);
 
@@ -58,6 +68,7 @@ public class PatientService {
         if (patientRepository.existsByEmailAndIdNot(patientRequestDTO.getEmail(),id)) {
             log.error("Email {} is already exist in the database",patient.getEmail());
             throw  new EmailAlreadyExistException("this is email is already exist");
+
         }
         patient.setEmail(patientRequestDTO.getEmail());
         patient=patientRepository.save(patient);

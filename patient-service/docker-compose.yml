@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  patient-service-db:
+    image: postgres:latest
+    container_name: patient-service-db2
+    environment:
+      - POSTGRES_DB=db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=aks
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+
+  patient-service-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: patient-service-app
+    depends_on:
+      - patient-service-db
+    ports:
+      - "4000:4000"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db2:5432/db
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=aks
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_SQL_INIT_MODE=always
+      - BILLING_SERVICE_ADDRESS=billing-service
+      - BILLING_SERVICE_GRPC_PORT=9001
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+    external: true
+
+volumes:
+  db_data:
